@@ -18,6 +18,7 @@ public class AndroidLauncher extends AndroidApplication {
 
     private static final int OVERLAY_PERMISSION_REQUEST_CODE = 1234;
     private boolean modMenuStarted = false;
+    private boolean hasOverlayPermission = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,7 +27,7 @@ public class AndroidLauncher extends AndroidApplication {
         configuration.useImmersiveMode = true;
         initialize(new Main(null), configuration);
 
-        // Check and request overlay permission for mod menu
+        // Check overlay permission
         checkOverlayPermission();
     }
 
@@ -43,10 +44,12 @@ public class AndroidLauncher extends AndroidApplication {
                 Toast.makeText(this, "Please grant overlay permission for Mod Menu",
                         Toast.LENGTH_LONG).show();
             } else {
+                hasOverlayPermission = true;
                 startModMenuService();
             }
         } else {
             // Pre-Marshmallow, permission is granted at install time
+            hasOverlayPermission = true;
             startModMenuService();
         }
     }
@@ -57,6 +60,7 @@ public class AndroidLauncher extends AndroidApplication {
         if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (Settings.canDrawOverlays(this)) {
+                    hasOverlayPermission = true;
                     startModMenuService();
                 } else {
                     Toast.makeText(this,
@@ -71,7 +75,7 @@ public class AndroidLauncher extends AndroidApplication {
      * Start the floating mod menu service
      */
     private void startModMenuService() {
-        if (!modMenuStarted) {
+        if (!modMenuStarted && hasOverlayPermission) {
             Intent serviceIntent = new Intent(this, ModMenuService.class);
             startService(serviceIntent);
             modMenuStarted = true;
@@ -80,13 +84,44 @@ public class AndroidLauncher extends AndroidApplication {
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // Stop the mod menu service when app is closed
+    /**
+     * Stop the floating mod menu service
+     */
+    private void stopModMenuService() {
         if (modMenuStarted) {
             Intent serviceIntent = new Intent(this, ModMenuService.class);
             stopService(serviceIntent);
+            modMenuStarted = false;
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Restart service when app comes back to foreground
+        if (hasOverlayPermission && !modMenuStarted) {
+            startModMenuService();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Stop service when app goes to background
+        stopModMenuService();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Ensure service is stopped when activity is no longer visible
+        stopModMenuService();
+    }
+
+    @Override
+    protected void onDestroy() {
+        // Stop the mod menu service when app is closed
+        stopModMenuService();
+        super.onDestroy();
     }
 }
