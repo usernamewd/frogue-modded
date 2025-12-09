@@ -113,8 +113,10 @@ public class GameWorld implements GameWorldRenderer {
     private float statTimer = 0f;
 
     public void gameUpdate(float dt) {
-        // Update CheatManager to apply active cheats
-        CheatManager.getInstance().update(dt);
+        // Ensure CheatManager has reference to this world and apply cheats
+        CheatManager cheatManager = CheatManager.getInstance();
+        cheatManager.setGameWorld(this);
+        cheatManager.update(dt);
 
         octree.update(dt);
         decalPool.update(cam, dt);

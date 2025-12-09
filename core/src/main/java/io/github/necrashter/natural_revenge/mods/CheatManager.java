@@ -58,12 +58,16 @@ public class CheatManager {
         return instance;
     }
 
+    // Track if original values have been backed up
+    private boolean originalsBackedUp = false;
+
     /**
      * Set the current game world reference
      */
     public void setGameWorld(GameWorld world) {
         this.currentWorld = world;
-        if (world != null) {
+        // Only backup original values once
+        if (world != null && !originalsBackedUp && !extendedViewDistance) {
             this.originalViewDistance = world.viewDistance;
         }
     }
@@ -79,9 +83,11 @@ public class CheatManager {
         currentPlayer = currentWorld.player;
         if (currentPlayer == null) return;
 
-        // Backup original values on first access
-        if (originalMaxWeapons == 6 && currentPlayer.maximumWeapons != 99) {
+        // Backup original values on first access (only once)
+        if (!originalsBackedUp) {
             originalMaxWeapons = currentPlayer.maximumWeapons;
+            originalViewDistance = currentWorld.viewDistance;
+            originalsBackedUp = true;
         }
 
         applyGodMode();
