@@ -8,6 +8,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -128,6 +129,15 @@ public class ModMenuService extends Service {
     }
 
     private void createMenuPanel() {
+        // Get screen dimensions for responsive layout
+        DisplayMetrics metrics = getResources().getDisplayMetrics();
+        int screenWidth = metrics.widthPixels;
+        int screenHeight = metrics.heightPixels;
+
+        // Calculate responsive panel dimensions
+        int panelWidth = Math.min(dpToPx(360), (int)(screenWidth * 0.9f));
+        int scrollHeight = Math.min(dpToPx(500), (int)(screenHeight * 0.65f));
+
         LinearLayout mainContainer = new LinearLayout(this);
         mainContainer.setOrientation(LinearLayout.VERTICAL);
 
@@ -136,7 +146,7 @@ public class ModMenuService extends Service {
         panelBg.setColor(COLOR_PRIMARY);
         panelBg.setStroke(dpToPx(2), COLOR_ACCENT);
         mainContainer.setBackground(panelBg);
-        mainContainer.setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16));
+        mainContainer.setPadding(dpToPx(12), dpToPx(12), dpToPx(12), dpToPx(12));
 
         // Header
         mainContainer.addView(createHeader());
@@ -145,7 +155,7 @@ public class ModMenuService extends Service {
         // Scrollable content
         ScrollView scrollView = new ScrollView(this);
         scrollView.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(450)));
+                LinearLayout.LayoutParams.MATCH_PARENT, scrollHeight));
 
         LinearLayout contentLayout = new LinearLayout(this);
         contentLayout.setOrientation(LinearLayout.VERTICAL);
@@ -156,6 +166,7 @@ public class ModMenuService extends Service {
         addCheatSection(contentLayout, "ОРУЖИЕ", createWeaponCheats());
         addCheatSection(contentLayout, "ДВИЖЕНИЕ", createMovementCheats());
         addCheatSection(contentLayout, "АИМБОТ", createAimbotCheats());
+        addCheatSection(contentLayout, "БОТЫ", createBotCheats());
         addCheatSection(contentLayout, "МИР", createWorldCheats());
         addCheatSection(contentLayout, "ДЕЙСТВИЯ", createActionButtons());
         addCheatSection(contentLayout, "НАСТРОЙКИ", createSliders());
@@ -169,7 +180,7 @@ public class ModMenuService extends Service {
         menuPanel = mainContainer;
 
         menuPanelParams = new WindowManager.LayoutParams(
-                dpToPx(340),
+                panelWidth,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 getLayoutFlag(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
@@ -371,6 +382,61 @@ public class ModMenuService extends Service {
         container.addView(seekBar);
 
         return container;
+    }
+
+    private LinearLayout createBotCheats() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+
+        // Bot info
+        LinearLayout infoRow = new LinearLayout(this);
+        infoRow.setOrientation(LinearLayout.HORIZONTAL);
+        infoRow.setGravity(Gravity.CENTER_VERTICAL);
+        infoRow.setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6));
+
+        GradientDrawable infoBg = new GradientDrawable();
+        infoBg.setCornerRadius(dpToPx(8));
+        infoBg.setColor(COLOR_SECONDARY);
+        infoRow.setBackground(infoBg);
+
+        LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        infoParams.setMargins(0, dpToPx(4), 0, dpToPx(4));
+        infoRow.setLayoutParams(infoParams);
+
+        TextView infoText = new TextView(this);
+        infoText.setText("Боты ведут себя как игроки.\nВраги будут атаковать их.");
+        infoText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+        infoText.setTextColor(COLOR_TEXT_DIM);
+        infoRow.addView(infoText);
+        layout.addView(infoRow);
+
+        addVerticalSpace(layout, dpToPx(8));
+
+        // Bot spawn buttons
+        LinearLayout buttonRow = new LinearLayout(this);
+        buttonRow.setOrientation(LinearLayout.HORIZONTAL);
+        buttonRow.setGravity(Gravity.CENTER);
+
+        Button spawn1Btn = createResponsiveButton("Добавить 1", COLOR_SUCCESS);
+        spawn1Btn.setOnClickListener(v -> cheatManager.spawnBot());
+        buttonRow.addView(spawn1Btn);
+
+        addHorizontalSpace(buttonRow, dpToPx(6));
+
+        Button spawn3Btn = createResponsiveButton("Добавить 3", COLOR_SUCCESS);
+        spawn3Btn.setOnClickListener(v -> cheatManager.spawnBots(3));
+        buttonRow.addView(spawn3Btn);
+
+        addHorizontalSpace(buttonRow, dpToPx(6));
+
+        Button removeBtn = createResponsiveButton("Удалить Всех", COLOR_DANGER);
+        removeBtn.setOnClickListener(v -> cheatManager.removeAllBots());
+        buttonRow.addView(removeBtn);
+
+        layout.addView(buttonRow);
+
+        return layout;
     }
 
     private LinearLayout createWorldCheats() {
@@ -578,6 +644,30 @@ public class ModMenuService extends Service {
         button.setBackground(bg);
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, height);
+        button.setLayoutParams(params);
+        button.setPadding(dpToPx(4), dpToPx(2), dpToPx(4), dpToPx(2));
+
+        return button;
+    }
+
+    /**
+     * Create a responsive button that adjusts to available space
+     */
+    private Button createResponsiveButton(String text, int bgColor) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextColor(COLOR_TEXT);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        button.setAllCaps(false);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dpToPx(8));
+        bg.setColor(bgColor);
+        button.setBackground(bg);
+
+        // Use weight for responsive sizing
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0, dpToPx(36), 1f);
         button.setLayoutParams(params);
         button.setPadding(dpToPx(4), dpToPx(2), dpToPx(4), dpToPx(2));
 

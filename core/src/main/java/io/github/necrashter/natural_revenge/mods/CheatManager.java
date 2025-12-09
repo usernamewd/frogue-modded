@@ -5,6 +5,7 @@ import com.badlogic.gdx.math.Vector3;
 import io.github.necrashter.natural_revenge.Main;
 import io.github.necrashter.natural_revenge.world.GameWorld;
 import io.github.necrashter.natural_revenge.world.entities.GameEntity;
+import io.github.necrashter.natural_revenge.world.entities.BotPlayer;
 import io.github.necrashter.natural_revenge.world.player.Firearm;
 import io.github.necrashter.natural_revenge.world.player.Player;
 import io.github.necrashter.natural_revenge.world.player.PlayerWeapon;
@@ -465,6 +466,45 @@ public class CheatManager {
     public void triggerInstantKillAll() { this.instantKillAll = true; }
 
     public GameWorld getCurrentWorld() { return currentWorld; }
+
+    // ==================== BOT CONTROLS ====================
+
+    /**
+     * Spawn a new bot player
+     */
+    public void spawnBot() {
+        if (currentWorld == null) return;
+        BotPlayer.spawnBot(currentWorld);
+    }
+
+    /**
+     * Spawn multiple bots
+     */
+    public void spawnBots(int count) {
+        if (currentWorld == null) return;
+        for (int i = 0; i < count; i++) {
+            BotPlayer.spawnBot(currentWorld);
+        }
+    }
+
+    /**
+     * Remove all bots from the game
+     */
+    public void removeAllBots() {
+        if (currentWorld == null) return;
+        BotPlayer.removeAllBots(currentWorld);
+    }
+
+    /**
+     * Get the number of active bots
+     */
+    public int getActiveBotCount() {
+        int count = 0;
+        for (BotPlayer bot : BotPlayer.getActiveBots()) {
+            if (!bot.dead) count++;
+        }
+        return count;
+    }
 
     /**
      * Reset all cheats to default (off) state

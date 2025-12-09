@@ -11,6 +11,10 @@ public class Zombie extends NPC {
     SingleAnimState emergeState;
     PursueToStrike pursueToStrike;
 
+    // Timer for retargeting
+    private float retargetTimer = 0f;
+    private static final float RETARGET_INTERVAL = 1f;
+
     public Zombie(GameWorld world) {
         super(world);
         modelInstance = new ModelInstance(Main.assets.npcModel, "ManArmature", "ZombieMesh");
@@ -26,13 +30,31 @@ public class Zombie extends NPC {
         };
         pursueToStrike.strikeAnim = "zombie-strike";
         deathAnim = "zombie-die";
-        pursueToStrike.prepare(world.player);
+        // Find initial target (player or bot)
+        GameEntity target = BotPlayer.getNearestPlayerOrBot(world, hitBox.position);
+        pursueToStrike.prepare(target != null ? target : world.player);
         emergeState = new SingleAnimState("zombie-emerge", pursueToStrike);
 
         maxHealth = 30f;
         health = maxHealth;
 
         switchState(emergeState);
+    }
+
+    @Override
+    public void update(float delta) {
+        // Periodically check for nearest target (player or bot)
+        if (!dead) {
+            retargetTimer += delta;
+            if (retargetTimer >= RETARGET_INTERVAL) {
+                retargetTimer = 0f;
+                GameEntity newTarget = BotPlayer.getNearestPlayerOrBot(world, hitBox.position);
+                if (newTarget != null && newTarget != pursueToStrike.targetEntity) {
+                    pursueToStrike.prepare(newTarget);
+                }
+            }
+        }
+        super.update(delta);
     }
 
     @Override
