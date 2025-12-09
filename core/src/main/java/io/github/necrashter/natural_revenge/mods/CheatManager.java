@@ -1,6 +1,7 @@
 package io.github.necrashter.natural_revenge.mods;
 
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector3;
 import io.github.necrashter.natural_revenge.Main;
 import io.github.necrashter.natural_revenge.world.GameWorld;
 import io.github.necrashter.natural_revenge.world.entities.GameEntity;
@@ -25,12 +26,22 @@ public class CheatManager {
     private boolean speedHack = false;
     private boolean superJump = false;
     private boolean noClip = false;
-    private boolean invisibility = false;
-    private boolean autoAim = false;
     private boolean freezeEnemies = false;
     private boolean instantKillAll = false;
     private boolean unlimitedWeaponSlots = false;
     private boolean extendedViewDistance = false;
+
+    // New cheats
+    private boolean noRecoil = false;
+    private boolean thirdPerson = false;
+    private boolean bunnyHop = false;
+    private boolean airStrafe = false;
+    private boolean silentAim = false;
+    private boolean drawAimFov = false;
+
+    // Aimbot settings
+    private float aimFov = 60f; // FOV in degrees (5-360)
+    private GameEntity currentAimTarget = null;
 
     // Cheat Values
     private float speedMultiplier = 2.0f;
@@ -38,16 +49,22 @@ public class CheatManager {
     private float damageMultiplier = 10.0f;
     private float fireRateMultiplier = 5.0f;
     private float viewDistanceMultiplier = 3.0f;
+    private float thirdPersonDistance = 5.0f;
 
     // Original values backup
     private float originalSpeed = 4.0f;
     private float originalJump = 6.0f;
     private float originalViewDistance = 25.0f;
     private int originalMaxWeapons = 6;
+    private float originalKnockback = 2f;
+    private float originalPitchMod = 0f;
 
     // Reference to current game world
     private GameWorld currentWorld = null;
     private Player currentPlayer = null;
+
+    // Track if original values have been backed up
+    private boolean originalsBackedUp = false;
 
     private CheatManager() {}
 
@@ -58,15 +75,11 @@ public class CheatManager {
         return instance;
     }
 
-    // Track if original values have been backed up
-    private boolean originalsBackedUp = false;
-
     /**
      * Set the current game world reference
      */
     public void setGameWorld(GameWorld world) {
         this.currentWorld = world;
-        // Only backup original values once
         if (world != null && !originalsBackedUp && !extendedViewDistance) {
             this.originalViewDistance = world.viewDistance;
         }
@@ -79,7 +92,7 @@ public class CheatManager {
         if (currentWorld == null) return;
         if (currentWorld.paused) return;
 
-        // Always get fresh player reference from world (player may be created after world)
+        // Always get fresh player reference from world
         currentPlayer = currentWorld.player;
         if (currentPlayer == null) return;
 
@@ -100,6 +113,11 @@ public class CheatManager {
         applyFreezeEnemies();
         applyExtendedViewDistance();
         applyUnlimitedWeaponSlots();
+        applyNoRecoil();
+        applyBunnyHop();
+        applyAirStrafe();
+        applySilentAim();
+        applyThirdPerson();
 
         if (instantKillAll) {
             killAllEnemies();
@@ -139,7 +157,6 @@ public class CheatManager {
             if (currentPlayer.activeWeapon instanceof Firearm) {
                 Firearm firearm = (Firearm) currentPlayer.activeWeapon;
                 if (rapidFire) {
-                    // Increase recovery speed for rapid fire effect
                     firearm.recoverySpeed = 50.0f;
                 }
             }
@@ -153,6 +170,19 @@ public class CheatManager {
                 if (noSpread) {
                     firearm.spread = 0f;
                 }
+            }
+        }
+    }
+
+    private void applyNoRecoil() {
+        if (noRecoil && currentPlayer != null) {
+            // Reset pitch modification (visual recoil)
+            currentPlayer.pitchMod = 0f;
+            // Zero out knockback on weapon
+            if (currentPlayer.activeWeapon instanceof Firearm) {
+                Firearm firearm = (Firearm) currentPlayer.activeWeapon;
+                firearm.knockback = 0f;
+                firearm.knockForward = 0f;
             }
         }
     }
@@ -174,6 +204,74 @@ public class CheatManager {
             } else {
                 currentPlayer.jumpVelocity = originalJump;
             }
+        }
+    }
+
+    private void applyBunnyHop() {
+        if (bunnyHop && currentPlayer != null) {
+            // Auto-jump when on ground and moving
+            if ((currentPlayer.hitBox.onGround || currentPlayer.hitBox.onObject)
+                && currentPlayer.movement.len2() > 0.01f) {
+                currentPlayer.jump(currentPlayer.jumpVelocity);
+            }
+        }
+    }
+
+    private void applyAirStrafe() {
+        if (airStrafe && currentPlayer != null) {
+            // Enhanced air control
+            if (!currentPlayer.hitBox.onGround && !currentPlayer.hitBox.onObject) {
+                // Apply movement in air with better control
+                currentPlayer.hitBox.velocity.x += currentPlayer.movement.x * 0.5f;
+                currentPlayer.hitBox.velocity.z += currentPlayer.movement.z * 0.5f;
+            }
+        }
+    }
+
+    private void applySilentAim() {
+        if (!silentAim || currentPlayer == null || currentWorld == null) {
+            currentAimTarget = null;
+            return;
+        }
+
+        // Find closest enemy within FOV
+        GameEntity closestTarget = null;
+        float closestAngle = aimFov / 2f; // Half angle for cone
+
+        Vector3 camDir = currentWorld.cam.direction;
+        Vector3 camPos = currentWorld.cam.position;
+
+        if (currentWorld.octree != null) {
+            for (GameEntity entity : currentWorld.octree.entities) {
+                if (entity == currentPlayer || entity.dead) continue;
+
+                // Calculate direction to entity
+                Vector3 toEntity = new Vector3(entity.hitBox.position).sub(camPos);
+                float distance = toEntity.len();
+                if (distance < 0.1f) continue;
+
+                toEntity.nor();
+
+                // Calculate angle between camera direction and entity direction
+                float dot = camDir.dot(toEntity);
+                float angle = (float) Math.toDegrees(Math.acos(MathUtils.clamp(dot, -1f, 1f)));
+
+                if (angle < closestAngle) {
+                    closestAngle = angle;
+                    closestTarget = entity;
+                }
+            }
+        }
+
+        currentAimTarget = closestTarget;
+    }
+
+    private void applyThirdPerson() {
+        if (thirdPerson && currentPlayer != null && currentWorld != null) {
+            // Move camera behind player
+            Vector3 offset = new Vector3(currentWorld.cam.direction).scl(-thirdPersonDistance);
+            offset.y += 1.5f; // Slightly above
+            currentWorld.cam.position.set(currentPlayer.hitBox.position).add(offset);
         }
     }
 
@@ -210,6 +308,27 @@ public class CheatManager {
         }
     }
 
+    /**
+     * Get the current aim target for silent aim (used in shooting)
+     */
+    public GameEntity getAimTarget() {
+        return silentAim ? currentAimTarget : null;
+    }
+
+    /**
+     * Check if FOV circle should be drawn
+     */
+    public boolean shouldDrawFovCircle() {
+        return silentAim && drawAimFov;
+    }
+
+    /**
+     * Get aim FOV in degrees
+     */
+    public float getAimFov() {
+        return aimFov;
+    }
+
     public void killAllEnemies() {
         if (currentWorld == null) return;
         Player player = currentWorld.player;
@@ -235,7 +354,6 @@ public class CheatManager {
         if (currentWorld == null) return;
         Player player = currentWorld.player;
         if (player != null) {
-            // Trigger weapon delivery
             player.noWeaponTimer = 0f;
         }
     }
@@ -268,7 +386,7 @@ public class CheatManager {
         if (oneHitKill) {
             return 9999f;
         }
-        return 1.0f; // Normal damage when cheat is disabled
+        return 1.0f;
     }
 
     // ==================== GETTERS AND SETTERS ====================
@@ -300,12 +418,6 @@ public class CheatManager {
     public boolean isNoClip() { return noClip; }
     public void setNoClip(boolean noClip) { this.noClip = noClip; }
 
-    public boolean isInvisibility() { return invisibility; }
-    public void setInvisibility(boolean invisibility) { this.invisibility = invisibility; }
-
-    public boolean isAutoAim() { return autoAim; }
-    public void setAutoAim(boolean autoAim) { this.autoAim = autoAim; }
-
     public boolean isFreezeEnemies() { return freezeEnemies; }
     public void setFreezeEnemies(boolean freezeEnemies) { this.freezeEnemies = freezeEnemies; }
 
@@ -314,6 +426,26 @@ public class CheatManager {
 
     public boolean isExtendedViewDistance() { return extendedViewDistance; }
     public void setExtendedViewDistance(boolean extendedViewDistance) { this.extendedViewDistance = extendedViewDistance; }
+
+    public boolean isNoRecoil() { return noRecoil; }
+    public void setNoRecoil(boolean noRecoil) { this.noRecoil = noRecoil; }
+
+    public boolean isThirdPerson() { return thirdPerson; }
+    public void setThirdPerson(boolean thirdPerson) { this.thirdPerson = thirdPerson; }
+
+    public boolean isBunnyHop() { return bunnyHop; }
+    public void setBunnyHop(boolean bunnyHop) { this.bunnyHop = bunnyHop; }
+
+    public boolean isAirStrafe() { return airStrafe; }
+    public void setAirStrafe(boolean airStrafe) { this.airStrafe = airStrafe; }
+
+    public boolean isSilentAim() { return silentAim; }
+    public void setSilentAim(boolean silentAim) { this.silentAim = silentAim; }
+
+    public boolean isDrawAimFov() { return drawAimFov; }
+    public void setDrawAimFov(boolean drawAimFov) { this.drawAimFov = drawAimFov; }
+
+    public void setAimFov(float aimFov) { this.aimFov = MathUtils.clamp(aimFov, 5f, 360f); }
 
     public float getSpeedMultiplier() { return speedMultiplier; }
     public void setSpeedMultiplier(float speedMultiplier) { this.speedMultiplier = speedMultiplier; }
@@ -327,7 +459,12 @@ public class CheatManager {
     public float getViewDistanceMultiplier() { return viewDistanceMultiplier; }
     public void setViewDistanceMultiplier(float viewDistanceMultiplier) { this.viewDistanceMultiplier = viewDistanceMultiplier; }
 
+    public float getThirdPersonDistance() { return thirdPersonDistance; }
+    public void setThirdPersonDistance(float distance) { this.thirdPersonDistance = distance; }
+
     public void triggerInstantKillAll() { this.instantKillAll = true; }
+
+    public GameWorld getCurrentWorld() { return currentWorld; }
 
     /**
      * Reset all cheats to default (off) state
@@ -342,14 +479,17 @@ public class CheatManager {
         speedHack = false;
         superJump = false;
         noClip = false;
-        invisibility = false;
-        autoAim = false;
         freezeEnemies = false;
         instantKillAll = false;
         unlimitedWeaponSlots = false;
         extendedViewDistance = false;
+        noRecoil = false;
+        thirdPerson = false;
+        bunnyHop = false;
+        airStrafe = false;
+        silentAim = false;
+        drawAimFov = false;
 
-        // Reset player values if available
         if (currentWorld != null) {
             Player player = currentWorld.player;
             if (player != null) {
@@ -368,16 +508,19 @@ public class CheatManager {
     public String getActiveCheatsSummary() {
         StringBuilder sb = new StringBuilder();
         if (godMode) sb.append("[GOD] ");
-        if (infiniteAmmo) sb.append("[INF AMMO] ");
-        if (noReload) sb.append("[NO RELOAD] ");
+        if (infiniteAmmo) sb.append("[AMMO] ");
+        if (noReload) sb.append("[RELOAD] ");
         if (rapidFire) sb.append("[RAPID] ");
-        if (noSpread) sb.append("[NO SPREAD] ");
+        if (noSpread) sb.append("[SPREAD] ");
         if (oneHitKill) sb.append("[1HIT] ");
         if (speedHack) sb.append("[SPEED] ");
         if (superJump) sb.append("[JUMP] ");
         if (freezeEnemies) sb.append("[FREEZE] ");
-        if (extendedViewDistance) sb.append("[VIEW] ");
-        if (unlimitedWeaponSlots) sb.append("[SLOTS] ");
+        if (noRecoil) sb.append("[RECOIL] ");
+        if (thirdPerson) sb.append("[3RD] ");
+        if (bunnyHop) sb.append("[BHOP] ");
+        if (airStrafe) sb.append("[AIR] ");
+        if (silentAim) sb.append("[AIM] ");
         return sb.toString();
     }
 }

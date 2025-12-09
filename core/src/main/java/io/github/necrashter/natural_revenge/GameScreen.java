@@ -5,7 +5,9 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
@@ -33,10 +35,14 @@ import io.github.necrashter.natural_revenge.world.LowResWorldRenderer;
 import io.github.necrashter.natural_revenge.world.levels.ScriptedEvent;
 import io.github.necrashter.natural_revenge.world.player.PlayerWeapon;
 import io.github.necrashter.natural_revenge.world.player.Firearm;
+import io.github.necrashter.natural_revenge.mods.CheatManager;
 
 public class GameScreen implements Screen {
     public static final float CROSSHAIR_SIZE = 48f;
     final Main game;
+
+    // Shape renderer for drawing FOV circle
+    private ShapeRenderer shapeRenderer;
 
     public final GameWorld world;
     private final GameWorldRenderer worldRenderer;
@@ -68,6 +74,9 @@ public class GameScreen implements Screen {
         this.world = world;
         world.screen = this;
         worldRenderer = new LowResWorldRenderer(world);
+
+        // Initialize shape renderer for FOV circle
+        shapeRenderer = new ShapeRenderer();
 //        worldRenderer = world;
 
         stage = new Stage(Main.createViewport());
@@ -433,6 +442,9 @@ public class GameScreen implements Screen {
         stage.getViewport().apply();
         stage.draw();
 
+        // Draw FOV circle for aimbot if enabled
+        drawFovCircle();
+
         StringBuilder stringBuilder = new StringBuilder();
         world.buildHudText(stringBuilder);
         topLeftLabel.setText(stringBuilder);
@@ -518,6 +530,55 @@ public class GameScreen implements Screen {
         // World renderer is supposed to dispose world as well.
         worldRenderer.dispose();
         stage.dispose();
+        if (shapeRenderer != null) {
+            shapeRenderer.dispose();
+        }
+    }
+
+    /**
+     * Draw FOV circle for aimbot visualization
+     */
+    private void drawFovCircle() {
+        CheatManager cheatManager = CheatManager.getInstance();
+        if (!cheatManager.shouldDrawFovCircle()) {
+            return;
+        }
+
+        float fov = cheatManager.getAimFov();
+        float screenWidth = Gdx.graphics.getWidth();
+        float screenHeight = Gdx.graphics.getHeight();
+        float centerX = screenWidth / 2f;
+        float centerY = screenHeight / 2f;
+
+        // Calculate radius based on FOV and screen size
+        // FOV is the total angle, so we use half for radius calculation
+        float halfFov = fov / 2f;
+        // Use smaller dimension for consistent circle, scale by FOV/90 degrees
+        float baseRadius = Math.min(screenWidth, screenHeight) / 2f;
+        float radius = baseRadius * (halfFov / 90f);
+
+        // Clamp radius to reasonable bounds
+        radius = Math.max(20f, Math.min(radius, baseRadius));
+
+        // Enable blending for transparency
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        Gdx.gl.glLineWidth(2f);
+
+        // Draw circle - red if target found, white otherwise
+        if (cheatManager.getAimTarget() != null) {
+            shapeRenderer.setColor(1f, 0f, 0f, 0.8f); // Red when target locked
+        } else {
+            shapeRenderer.setColor(1f, 1f, 1f, 0.5f); // White when searching
+        }
+
+        // Draw circle with 64 segments for smoothness
+        shapeRenderer.circle(centerX, centerY, radius, 64);
+        shapeRenderer.end();
+
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     public void playerDied() {

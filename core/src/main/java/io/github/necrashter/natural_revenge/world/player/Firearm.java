@@ -159,13 +159,25 @@ public class Firearm extends PlayerWeapon {
         decalRotation = MathUtils.random(0, MathUtils.PI2);
         nextRoll = MathUtils.random(-recoveryRoll, recoveryRoll);
 
+        CheatManager cheatManager = CheatManager.getInstance();
         // Apply damage multiplier from CheatManager (for one-hit kill)
-        float effectiveDamage = damage * CheatManager.getInstance().getDamageMultiplier();
+        float effectiveDamage = damage * cheatManager.getDamageMultiplier();
+
+        // Check for silent aim target
+        io.github.necrashter.natural_revenge.world.entities.GameEntity aimTarget = cheatManager.getAimTarget();
 
         for (int i = 0; i < bulletsPerShot; ++i) {
-            player.castShootRay(spread);
+            // Apply no spread if no recoil is enabled
+            float effectiveSpread = cheatManager.isNoRecoil() ? 0f : spread;
+            player.castShootRay(effectiveSpread);
             player.world.decalPool.addBulletTrace(decal.getPosition(), player.getShootTargetPoint());
-            if (player.shootIntersection.object != null) {
+
+            // Silent aim: damage the aim target directly instead of ray hit
+            if (aimTarget != null && !aimTarget.dead) {
+                aimTarget.takeDamage(effectiveDamage, Damageable.DamageAgent.Player, Damageable.DamageSource.Firearm);
+                totalBulletsHit++;
+                totalDamage += effectiveDamage;
+            } else if (player.shootIntersection.object != null) {
                 if (player.shootIntersection.object instanceof Damageable) {
                     Damageable damageable = (Damageable) player.shootIntersection.object;
                     damageable.takeDamage(effectiveDamage, Damageable.DamageAgent.Player, Damageable.DamageSource.Firearm);
@@ -177,13 +189,16 @@ public class Firearm extends PlayerWeapon {
             }
         }
         totalBulletsShot += bulletsPerShot;
-        // Knockback
-        float horizontalLength = knockForward;
-        player.hitBox.velocity.add(
-            player.camera.direction.x * horizontalLength,
-            player.camera.direction.y * horizontalLength,
-            player.camera.direction.z * horizontalLength);
-        player.pitchMod += knockback;
+
+        // Knockback - skip if no recoil is enabled
+        if (!cheatManager.isNoRecoil()) {
+            float horizontalLength = knockForward;
+            player.hitBox.velocity.add(
+                player.camera.direction.x * horizontalLength,
+                player.camera.direction.y * horizontalLength,
+                player.camera.direction.z * horizontalLength);
+            player.pitchMod += knockback;
+        }
         player.world.statistics.update(this);
     }
 
