@@ -63,13 +63,8 @@ public class CheatManager {
      */
     public void setGameWorld(GameWorld world) {
         this.currentWorld = world;
-        if (world != null && world.player != null) {
-            this.currentPlayer = world.player;
-            // Backup original values
-            this.originalSpeed = 4.0f;
-            this.originalJump = 6.0f;
+        if (world != null) {
             this.originalViewDistance = world.viewDistance;
-            this.originalMaxWeapons = world.player.maximumWeapons;
         }
     }
 
@@ -77,8 +72,17 @@ public class CheatManager {
      * Called every frame to apply active cheats
      */
     public void update(float delta) {
-        if (currentWorld == null || currentPlayer == null) return;
+        if (currentWorld == null) return;
         if (currentWorld.paused) return;
+
+        // Always get fresh player reference from world (player may be created after world)
+        currentPlayer = currentWorld.player;
+        if (currentPlayer == null) return;
+
+        // Backup original values on first access
+        if (originalMaxWeapons == 6 && currentPlayer.maximumWeapons != 99) {
+            originalMaxWeapons = currentPlayer.maximumWeapons;
+        }
 
         applyGodMode();
         applyInfiniteAmmo();
@@ -201,9 +205,11 @@ public class CheatManager {
     }
 
     public void killAllEnemies() {
-        if (currentWorld != null && currentWorld.octree != null) {
+        if (currentWorld == null) return;
+        Player player = currentWorld.player;
+        if (currentWorld.octree != null) {
             for (GameEntity entity : currentWorld.octree.entities) {
-                if (entity != currentPlayer && !entity.dead) {
+                if (entity != player && !entity.dead) {
                     entity.health = 0;
                     entity.die();
                 }
@@ -212,30 +218,38 @@ public class CheatManager {
     }
 
     public void healPlayer() {
-        if (currentPlayer != null) {
-            currentPlayer.health = currentPlayer.maxHealth;
+        if (currentWorld == null) return;
+        Player player = currentWorld.player;
+        if (player != null) {
+            player.health = player.maxHealth;
         }
     }
 
     public void giveAllWeapons() {
-        if (currentPlayer != null) {
+        if (currentWorld == null) return;
+        Player player = currentWorld.player;
+        if (player != null) {
             // Trigger weapon delivery
-            currentPlayer.noWeaponTimer = 0f;
+            player.noWeaponTimer = 0f;
         }
     }
 
     public void teleportForward(float distance) {
-        if (currentPlayer != null && currentWorld != null) {
-            float newX = currentPlayer.hitBox.position.x + currentWorld.cam.direction.x * distance;
-            float newZ = currentPlayer.hitBox.position.z + currentWorld.cam.direction.z * distance;
-            currentPlayer.setPosition(newX, newZ);
+        if (currentWorld == null) return;
+        Player player = currentWorld.player;
+        if (player != null) {
+            float newX = player.hitBox.position.x + currentWorld.cam.direction.x * distance;
+            float newZ = player.hitBox.position.z + currentWorld.cam.direction.z * distance;
+            player.setPosition(newX, newZ);
         }
     }
 
     public void setPlayerHealth(float health) {
-        if (currentPlayer != null) {
-            currentPlayer.maxHealth = health;
-            currentPlayer.health = health;
+        if (currentWorld == null) return;
+        Player player = currentWorld.player;
+        if (player != null) {
+            player.maxHealth = health;
+            player.health = health;
         }
     }
 
@@ -330,12 +344,13 @@ public class CheatManager {
         extendedViewDistance = false;
 
         // Reset player values if available
-        if (currentPlayer != null) {
-            currentPlayer.movementSpeed = originalSpeed;
-            currentPlayer.jumpVelocity = originalJump;
-            currentPlayer.maximumWeapons = originalMaxWeapons;
-        }
         if (currentWorld != null) {
+            Player player = currentWorld.player;
+            if (player != null) {
+                player.movementSpeed = originalSpeed;
+                player.jumpVelocity = originalJump;
+                player.maximumWeapons = originalMaxWeapons;
+            }
             currentWorld.viewDistance = originalViewDistance;
             currentWorld.cam.far = originalViewDistance;
         }
